@@ -9,6 +9,13 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+```{r load_packages}
+library(graphicalMCP)
+# install optimalMCP package if not installed
+# remotes::install_github("cyustcer/optimalMCP")
+library(optimalMCP)
+```
+
 ## Example 3
 
 Description of study background or refer to the slides pages. 
@@ -43,7 +50,6 @@ plot(graph.study, vertex.size = 30)
 ### Initial Weights optimization
 
 ```{r weight_optimization}
-devtools::load_all("../")
 # Set up constraint
 # NA means free to w can be any number between 0 and 1
 # constant means w is pre-defined and should not be optimized
