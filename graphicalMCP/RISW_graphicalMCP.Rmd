@@ -1,0 +1,209 @@
+---
+title: "RISW short course example - graphicalMCP"
+author: "Dong Xi"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load_packages}
+library(graphicalMCP)
+```
+
+### Example 3
+
+#### Initial graph
+```{r initial_graph}
+hypotheses <- c(0.5, 0.5, 0, 0)
+transitions <- rbind(c(0, 0.5, 0.5, 0),
+                     c(0.5, 0, 0, 0.5),
+                     c(0, 1, 0, 0),
+                     c(1, 0, 0, 0))
+hyp_names <- c("H1", "H2", "H3", "H4")
+g <- graph_create(hypotheses,
+                  transitions,
+                  hyp_names)
+plot(g, vertex.size = 60)
+```
+
+#### Updated graph
+```{r updated_graph}
+updated_g <- graph_update(g, delete = c(F, T, F, F))
+plot(updated_g, vertex.size = 60)
+```
+
+#### Testing
+```{r testing}
+p_value <- c(0.018, 0.01, 0.105, 0.006)
+test_results <- graph_test_shortcut(g, p = p_value, alpha = 0.025)
+test_results$outputs$rejected
+test_results$outputs$adjusted_p
+```
+
+#### Stepwise decisions
+```{r stepwise_decisions}
+test_results <- graph_test_shortcut(g, p = p_value, alpha = 0.025,test_values=T)
+test_results$test_values$results
+```
+
+#### Rejection sequences
+```{r rejection_sequences}
+graph_rejection_orderings(test_results)$valid_orderings
+```
+
+#### Power
+```{r power}
+set.seed(1234)
+power_results <- graph_calculate_power(g,
+                                       sim_n = 1e6,
+                                       sim_corr = diag(4),
+                                       power_marginal = c(0.9, 0.9, 0.8, 0.8))
+power_results$power$power_local
+```
+
+#### Success objectives
+```{r success_objectives}
+set.seed(1234)
+success_fns <- list(# Prob to reject both hypotheses for either dose
+  `(H1andH3)or(H2andH4)` = function(x) (x[1] & x[3]) | (x[2] & x[4]))
+power_results <- graph_calculate_power(g,
+                                       sim_n = 1e6,
+                                       sim_corr = diag(4),
+                                       power_marginal = c(0.9, 0.9, 0.8, 0.8),
+                                       sim_success= success_fns)
+power_results$power$power_success
+```
+
+### Example based on the CANTOS trial
+
+#### Initial graph
+```{r cantos_example_initial_graph}
+hypotheses <- c(0.2, 0.4, 0.4, 0, 0, 0, 0, 0, 0)
+epsilon <- 1e-5
+transitions <- rbind(H11=c(0, 0.45, 0.25, 0.27, 0, 0, 0.03, 0, 0),
+                     H21=c(0.07, 0, 0.63, 0, 0.27, 0, 0, 0.03, 0),
+                     H31=c(0.07, 0.13, 0, 0, 0, 0.72, 0, 0, 0.08),
+                     H12=c(0, 0, 0, 0, 0, 0, 1, 0, 0),
+                     H22=c(0, 0, 0, 0, 0, 0, 0, 1, 0),
+                     H32=c(0, epsilon, 0, 0, 0, 0, 0, 0, 1 - epsilon),
+                     H13=c(0, epsilon, 0, 1 - epsilon, 0, 0, 0, 0, 0),
+                     H23=c(0, 0, epsilon, 0, 1 - epsilon, 0, 0, 0, 0),
+                     H33=c(0, 0, 0, 0, 0, 1, 0, 0, 0))
+g <- graph_create(hypotheses, transitions)
+plot_layout <- rbind(c(0.15, 0.5), c(0.65, 0.5), c(1.15, 0.5),
+                     c(0, 0), c(0.5, 0), c(1, 0),
+                     c(0.3, 0), c(0.8, 0), c(1.3, 0))
+plot(g,
+     layout = plot_layout,
+     eps = epsilon,
+     edge_curves = c(pairs = 0.95),
+     vertex.size = 15,
+     margins = c(1,1,3,1))
+```
+
+#### Updated objectives
+```{r cantos_example_updated_graph}
+updated_g <- graph_update(g, delete = c(T, F, F, F, F, F, F, F, F))
+plot_layout <- rbind(c(0.15, 0.5), c(0.65, 0.5), c(1.15, 0.5),
+                     c(0, 0), c(0.5, 0), c(1, 0),
+                     c(0.3, 0), c(0.8, 0), c(1.3, 0))
+plot(updated_g,
+     layout = plot_layout,
+     eps = epsilon,
+     edge_curves = c(pairs = 0.95),
+     vertex.size = 15,
+     margins = c(1,1,3,1))
+```
+
+#### Testing
+```{r cantos_exaple_testing}
+set.seed(1234)
+corr <- matrix(0.4, nrow = 3, ncol = 3)
+diag(corr) <- 1
+pvalues <- c(0.0314, 0.02075, 0.30, 0.004, 0.005, 0.12, 0.006, 0.02, 0.07) / 2
+test_results <- graph_test_closure(g,
+                                   p = pvalues,
+                                   alpha = 0.0245,
+                                   test_groups= list(1:3, 4:9),
+                                   test_types= c("parametric", "bonferroni"),
+                                   test_corr= list(corr, NA))
+test_results$outputs$rejected
+test_results$outputs$adjusted_p
+```
+
+#### Closed test
+```{r cantos_example_closed_test}
+set.seed(1234)
+closed_test <- graph_test_closure(g,
+                                  p = pvalues,
+                                  alpha = 0.0245,
+                                  test_groups = list(1:3, 4:9),
+                                  test_types = c("parametric", "bonferroni"),
+                                  test_corr = list(corr, NA),
+                                  test_values = TRUE)
+subset(closed_test$test_values$results, Intersection == "011111111")
+```
+
+#### Power
+```{r cantos_example_power}
+set.seed(1234)
+marginal_power <- c(0.85, 0.85, 0.85, 0.75, 0.75, 0.75, 0.65, 0.65, 0.65)
+corr_sim <-matrix(0.5, nrow = 9, ncol = 9)
+diag(corr_sim) <- 1
+success_fns <- list(`AllPE` = function(x) x[1] & x[2] & x[3])
+power_results <- graph_calculate_power(g,
+                                       alpha = 0.0245,
+                                       sim_corr = corr_sim,
+                                       sim_n = 1e5,
+                                       power_marginal = c(marginal_power),
+                                       test_groups= list(1:3, 4:9),
+                                       test_types= c("parametric", "bonferroni"),
+                                       test_corr= list(corr, NA),
+                                       sim_success = success_fns)
+power_results$power
+```
+
+#### Testing with Simes
+```{r cantos_exaple_testing_simes}
+set.seed(1234)
+test_results <- graph_test_closure(g,
+                                   p = pvalues,
+                                   alpha = 0.0245,
+                                   test_groups= list(1:3, c(4, 7), c(5, 8), c(6, 9)),
+                                   test_types= c("parametric", "simes", "simes", "simes"),
+                                   test_corr= list(corr, NA, NA, NA))
+test_results$outputs$rejected
+test_results$outputs$adjusted_p
+```
+
+#### Closed test with Simes
+```{r cantos_example_closed_test_simes}
+set.seed(1234)
+closed_test <- graph_test_closure(g,
+                                  p = pvalues,
+                                  alpha = 0.0245,
+                                  test_groups = list(1:3, c(4, 7), c(5, 8), c(6, 9)),
+                                  test_types = c("parametric", "simes", "simes", "simes"),
+                                  test_corr = list(corr, NA, NA, NA),
+                                  test_values= TRUE)
+subset(closed_test$test_values$results, Intersection == "011111111")
+```
+
+#### Power with Simes
+```{r cantos_example_power_simes}
+set.seed(1234)
+power_results <- graph_calculate_power(g,
+                                       alpha = 0.0245,
+                                       sim_corr = corr_sim,
+                                       sim_n = 1e5,
+                                       power_marginal = c(marginal_power),
+                                       test_groups = list(1:3, c(4, 7), c(5, 8), c(6, 9)),
+                                       test_types= c("parametric", "simes", "simes", "simes"),
+                                       test_corr= list(corr, NA, NA, NA),
+                                       sim_success = success_fns)
+power_results$power
+```
+
